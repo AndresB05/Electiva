@@ -1,0 +1,16 @@
+{
+  "chat": {
+    "title": "Chat con IA",
+    "placeholder": "Escribe tu mensaje aquí...",
+    "send": "Enviar",
+    "clear": "Limpiar chat",
+    "loading": "Cargando...",
+    "error": "Error al enviar mensaje",
+    "retry": "Reintentar",
+    "settings": {
+      "title": "Configuración",
+      "topK": "Top K",
+      "temperature": "Temperatura"
+    }
+  }
+}
