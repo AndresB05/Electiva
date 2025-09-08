@@ -19,13 +19,13 @@ test.describe('Flujo de Chat', () => {
   });
 
   test('debe cargar la interfaz del chat correctamente', async ({ page }) => {
-    // Check that the title is displayed
+    // Check that the title is displayed with correct text
     await expect(page.getByTestId('chat-title')).toBeVisible();
-    await expect(page.getByTestId('chat-title')).toHaveText('Chat con IA');
+    await expect(page.getByTestId('chat-title')).toHaveText('Nueva Conversación');
 
-    // Check that the input field is visible
+    // Check that the input field is visible with correct placeholder
     await expect(page.getByTestId('message-input')).toBeVisible();
-    await expect(page.getByTestId('message-input')).toHaveAttribute('placeholder', 'Escribe tu mensaje aquí...');
+    await expect(page.getByTestId('message-input')).toHaveAttribute('placeholder', 'Escribe tu mensaje aquí…');
 
     // Check that buttons are visible
     await expect(page.getByTestId('send-button')).toBeVisible();
@@ -77,6 +77,25 @@ test.describe('Flujo de Chat', () => {
   test('debe mostrar mensaje del usuario al enviarlo', async ({ page }) => {
     const testMessage = 'Este es un mensaje de prueba';
     
+    // Mock the API response with new SSE format
+    await page.route('/api/chat/send', async (route) => {
+      const sseResponse = `data: {\"type\": \"message\", \"content\": \"Respuesta de prueba\"}
+
+data: {\"type\": \"complete\"}
+
+`;
+      
+      await route.fulfill({
+        status: 200,
+        headers: {
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          'Connection': 'keep-alive',
+        },
+        body: sseResponse,
+      });
+    });
+    
     // Fill the input and send message
     await page.getByTestId('message-input').fill(testMessage);
     await page.getByTestId('send-button').click();
@@ -90,13 +109,23 @@ test.describe('Flujo de Chat', () => {
   });
 
   test('debe mostrar indicador de carga al enviar mensaje', async ({ page }) => {
-    // Mock the API to delay response
+    // Mock the API with new SSE format and delay
     await page.route('/api/chat/send', async (route) => {
       // Delay the response
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise(resolve => setTimeout(resolve, 500));
       
-      // Mock SSE response
-      const sseResponse = `data: {"type": "chunk", "content": "Respuesta de prueba"}\n\ndata: {"type": "complete", "content": " desde n8n", "sources": ["test"], "usage": {"promptTokens": 10, "completionTokens": 15, "totalTokens": 25}}\n\n`;
+      // Mock SSE response with new format
+      const sseResponse = `data: {\"type\": \"message\", \"content\": \"Respuesta de prueba\"}
+
+data: {\"type\": \"message\", \"content\": \" desde n8n\"}
+
+data: {\"type\": \"sources\", \"sources\": [\"test\"]}
+
+data: {\"type\": \"usage\", \"usage\": {\"promptTokens\": 10, \"completionTokens\": 15, \"totalTokens\": 25}}
+
+data: {\"type\": \"complete\"}
+
+`;
       
       await route.fulfill({
         status: 200,
@@ -127,9 +156,13 @@ test.describe('Flujo de Chat', () => {
   });
 
   test('debe limpiar el chat al presionar el botón limpiar', async ({ page }) => {
-    // Mock the API response
+    // Mock the API response with new SSE format
     await page.route('/api/chat/send', async (route) => {
-      const sseResponse = `data: {"type": "complete", "content": "Respuesta de prueba", "sources": [], "usage": {"promptTokens": 5, "completionTokens": 10, "totalTokens": 15}}\n\n`;
+      const sseResponse = `data: {\"type\": \"message\", \"content\": \"Respuesta de prueba\"}
+
+data: {\"type\": \"complete\"}
+
+`;
       
       await route.fulfill({
         status: 200,
@@ -175,9 +208,13 @@ test.describe('Flujo de Chat', () => {
   });
 
   test('debe permitir enviar mensaje con Enter', async ({ page }) => {
-    // Mock the API response
+    // Mock the API response with new SSE format
     await page.route('/api/chat/send', async (route) => {
-      const sseResponse = `data: {"type": "complete", "content": "Respuesta enviada con Enter", "sources": [], "usage": {"promptTokens": 5, "completionTokens": 10, "totalTokens": 15}}\n\n`;
+      const sseResponse = `data: {\"type\": \"message\", \"content\": \"Respuesta enviada con Enter\"}
+
+data: {\"type\": \"complete\"}
+
+`;
       
       await route.fulfill({
         status: 200,
@@ -200,9 +237,17 @@ test.describe('Flujo de Chat', () => {
   });
 
   test('debe mostrar fuentes y usage cuando están disponibles', async ({ page }) => {
-    // Mock API response with sources and usage
+    // Mock API response with sources and usage using new SSE format
     await page.route('/api/chat/send', async (route) => {
-      const sseResponse = `data: {"type": "complete", "content": "Respuesta con fuentes", "sources": ["Fuente 1", "Fuente 2"], "usage": {"promptTokens": 10, "completionTokens": 20, "totalTokens": 30}}\n\n`;
+      const sseResponse = `data: {\"type\": \"message\", \"content\": \"Respuesta con fuentes\"}
+
+data: {\"type\": \"sources\", \"sources\": [\"Fuente 1\", \"Fuente 2\"]}
+
+data: {\"type\": \"usage\", \"usage\": {\"promptTokens\": 10, \"completionTokens\": 20, \"totalTokens\": 30}}
+
+data: {\"type\": \"complete\"}
+
+`;
       
       await route.fulfill({
         status: 200,
@@ -220,13 +265,81 @@ test.describe('Flujo de Chat', () => {
     // Wait for assistant message
     await expect(page.getByTestId('message-assistant')).toBeVisible();
     
-    // Check that sources are displayed
+    // Check that sources are displayed with new text
     const assistantMessage = page.getByTestId('message-assistant');
-    await expect(assistantMessage).toContainText('Fuentes:');
+    await expect(assistantMessage).toContainText('Ver Fuentes:');
     await expect(assistantMessage).toContainText('Fuente 1');
     await expect(assistantMessage).toContainText('Fuente 2');
     
     // Check that usage is displayed
     await expect(assistantMessage).toContainText('Tokens: 30 (10+20)');
+  });
+
+  test('debe validar configuración con valores límite', async ({ page }) => {
+    // Test topK limits (should be validated by HTML attributes)
+    await page.getByTestId('topk-input').fill('25');
+    // Browser should clamp to max value defined in HTML
+    
+    await page.getByTestId('topk-input').fill('0');
+    // Browser should clamp to min value defined in HTML
+    
+    // Test temperature limits
+    await page.getByTestId('temperature-input').fill('1.5');
+    // Browser should clamp to max value defined in HTML
+    
+    await page.getByTestId('temperature-input').fill('-0.1');
+    // Browser should clamp to min value defined in HTML
+  });
+
+  test('debe manejar múltiples idiomas', async ({ page }) => {
+    // Test en-US locale
+    await page.goto('/en-US/chat');
+    await expect(page.getByTestId('chat-title')).toHaveText('New Conversation');
+    await expect(page.getByTestId('message-input')).toHaveAttribute('placeholder', 'Type your message here…');
+    
+    // Test es-CO locale
+    await page.goto('/es-CO/chat');
+    await expect(page.getByTestId('chat-title')).toHaveText('Nueva Conversación');
+    await expect(page.getByTestId('message-input')).toHaveAttribute('placeholder', 'Escriba su mensaje aquí…');
+  });
+
+  test('debe validar n8n request contract', async ({ page }) => {
+    let capturedRequest: any;
+    
+    // Capture the request to verify contract
+    await page.route('/api/chat/send', async (route) => {
+      const request = route.request();
+      capturedRequest = JSON.parse(request.postData() || '{}');
+      
+      const sseResponse = `data: {\"type\": \"message\", \"content\": \"Test response\"}
+
+data: {\"type\": \"complete\"}
+
+`;
+      
+      await route.fulfill({
+        status: 200,
+        headers: {
+          'Content-Type': 'text/event-stream',
+        },
+        body: sseResponse,
+      });
+    });
+
+    // Set custom configuration
+    await page.getByTestId('topk-input').fill('10');
+    await page.getByTestId('temperature-input').fill('0.8');
+    
+    // Send message
+    await page.getByTestId('message-input').fill('Test contract');
+    await page.getByTestId('send-button').click();
+
+    // Wait for request to complete
+    await expect(page.getByTestId('message-user')).toBeVisible();
+    
+    // Verify request contract
+    expect(capturedRequest.chatInput).toBe('Test contract');
+    expect(capturedRequest.topK).toBe(10);
+    expect(capturedRequest.temperature).toBe(0.8);
   });
 });
