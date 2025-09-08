@@ -84,6 +84,8 @@ export default function ChatInterface() {
 
       const decoder = new TextDecoder();
       let accumulatedContent = '';
+      let currentSources: string[] | undefined;
+      let currentUsage: { promptTokens: number; completionTokens: number; totalTokens: number; } | undefined;
 
       while (true) {
         const { done, value } = await reader.read();
@@ -97,7 +99,8 @@ export default function ChatInterface() {
             try {
               const data = JSON.parse(line.slice(6));
               
-              if (data.type === 'chunk' || data.type === 'complete') {
+              if (data.type === 'message') {
+                // Accumulate message content
                 accumulatedContent += data.content;
                 setMessages(prev => 
                   prev.map(msg => 
@@ -105,8 +108,26 @@ export default function ChatInterface() {
                       ? { 
                           ...msg, 
                           content: accumulatedContent,
-                          sources: data.sources,
-                          usage: data.usage,
+                        }
+                      : msg
+                  )
+                );
+              } else if (data.type === 'sources') {
+                // Store sources to be added when complete
+                currentSources = data.sources;
+              } else if (data.type === 'usage') {
+                // Store usage to be added when complete
+                currentUsage = data.usage;
+              } else if (data.type === 'complete') {
+                // Final update with sources and usage
+                setMessages(prev => 
+                  prev.map(msg => 
+                    msg.id === assistantMessageId 
+                      ? { 
+                          ...msg, 
+                          content: accumulatedContent,
+                          sources: currentSources,
+                          usage: currentUsage,
                         }
                       : msg
                   )
@@ -209,7 +230,7 @@ export default function ChatInterface() {
               <p className="whitespace-pre-wrap">{message.content}</p>
               {message.sources && message.sources.length > 0 && (
                 <div className="mt-2 text-sm opacity-80">
-                  <strong>Fuentes:</strong>
+                  <strong>{t('sources')}:</strong>
                   <ul className="list-disc list-inside">
                     {message.sources.map((source, index) => (
                       <li key={index}>{source}</li>

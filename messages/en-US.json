@@ -1,0 +1,17 @@
+{
+  "chat": {
+    "title": "New Conversation",
+    "placeholder": "Type your message here…",
+    "send": "Send",
+    "clear": "Search conversations",
+    "loading": "Loading...",
+    "error": "Error sending message",
+    "retry": "Retry",
+    "sources": "View Sources",
+    "settings": {
+      "title": "Settings",
+      "topK": "Top K",
+      "temperature": "Temperature"
+    }
+  }
+}

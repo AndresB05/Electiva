@@ -16,12 +16,32 @@ interface N8NResponse {
   };
 }
 
-function chunkText(text: string, chunkSize: number = 700): string[] {
+function chunkText(text: string, minSize: number = 600, maxSize: number = 800): string[] {
   const chunks: string[] = [];
-  for (let i = 0; i < text.length; i += chunkSize) {
-    chunks.push(text.slice(i, i + chunkSize));
+  let currentPos = 0;
+  
+  while (currentPos < text.length) {
+    let chunkEnd = Math.min(currentPos + maxSize, text.length);
+    
+    // If we're not at the end of the text, try to break at a word boundary
+    if (chunkEnd < text.length) {
+      const lastSpace = text.lastIndexOf(' ', chunkEnd);
+      const lastPeriod = text.lastIndexOf('.', chunkEnd);
+      const lastNewline = text.lastIndexOf('\n', chunkEnd);
+      
+      // Find the best break point (prefer sentence end, then word boundary)
+      const bestBreak = Math.max(lastPeriod, lastNewline, lastSpace);
+      
+      if (bestBreak > currentPos + minSize) {
+        chunkEnd = bestBreak + (lastPeriod === bestBreak || lastNewline === bestBreak ? 1 : 0);
+      }
+    }
+    
+    chunks.push(text.slice(currentPos, chunkEnd).trim());
+    currentPos = chunkEnd;
   }
-  return chunks;
+  
+  return chunks.filter(chunk => chunk.length > 0);
 }
 
 export async function POST(request: NextRequest) {
@@ -48,9 +68,6 @@ export async function POST(request: NextRequest) {
         const encoder = new TextEncoder();
 
         try {
-          // Send initial status
-          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'status', message: 'Connecting to AI...' })}\n\n`));
-
           // Make request to n8n webhook
           const response = await fetch(n8nUrl, {
             method: 'POST',
@@ -70,34 +87,56 @@ export async function POST(request: NextRequest) {
 
           const n8nData: N8NResponse = await response.json();
 
-          // Send the response in chunks
-          const chunks = chunkText(n8nData.output, 700);
+          // Chunk the output text into 600-800 character pieces
+          const chunks = chunkText(n8nData.output, 600, 800);
           
+          // Emit message chunks line by line
           for (let i = 0; i < chunks.length; i++) {
             const chunk = chunks[i];
-            const isLast = i === chunks.length - 1;
-            
             const eventData = {
-              type: isLast ? 'complete' : 'chunk',
+              type: 'message',
               content: chunk,
-              sources: isLast ? n8nData.sources : undefined,
-              usage: isLast ? n8nData.usage : undefined,
             };
 
             controller.enqueue(encoder.encode(`data: ${JSON.stringify(eventData)}\n\n`));
             
-            // Add small delay between chunks to simulate streaming
-            if (!isLast) {
-              await new Promise(resolve => setTimeout(resolve, 100));
+            // Add small delay between chunks for smooth streaming
+            if (i < chunks.length - 1) {
+              await new Promise(resolve => setTimeout(resolve, 50));
             }
           }
 
+          // Emit sources if available
+          if (n8nData.sources && n8nData.sources.length > 0) {
+            const sourcesData = {
+              type: 'sources',
+              sources: n8nData.sources,
+            };
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify(sourcesData)}\n\n`));
+          }
+
+          // Emit usage statistics if available
+          if (n8nData.usage) {
+            const usageData = {
+              type: 'usage',
+              usage: n8nData.usage,
+            };
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify(usageData)}\n\n`));
+          }
+
+          // Emit completion event
+          const completeData = {
+            type: 'complete',
+          };
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify(completeData)}\n\n`));
+
         } catch (error) {
           console.error('Error in SSE stream:', error);
-          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ 
-            type: 'error', 
-            message: error instanceof Error ? error.message : 'Unknown error occurred' 
-          })}\n\n`));
+          const errorData = {
+            type: 'error',
+            message: error instanceof Error ? error.message : 'Unknown error occurred'
+          };
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify(errorData)}\n\n`));
         }
 
         controller.close();

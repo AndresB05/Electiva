@@ -1,7 +1,7 @@
 {
   "chat": {
     "title": "Nueva Conversación",
-    "placeholder": "Escribe tu mensaje aquí…",
+    "placeholder": "Escriba su mensaje aquí…",
     "send": "Enviar",
     "clear": "Buscar conversaciones",
     "loading": "Cargando...",
