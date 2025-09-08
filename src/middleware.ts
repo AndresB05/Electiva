@@ -1,6 +1,7 @@
 import createMiddleware from 'next-intl/middleware';
+import { NextRequest, NextResponse } from 'next/server';
 
-export default createMiddleware({
+const intlMiddleware = createMiddleware({
   // A list of all locales that are supported
   locales: ['es-ES'],
 
@@ -8,7 +9,17 @@ export default createMiddleware({
   defaultLocale: 'es-ES'
 });
 
+export default function middleware(request: NextRequest) {
+  // Handle root path redirection to /es-ES/chat
+  if (request.nextUrl.pathname === '/') {
+    return NextResponse.redirect(new URL('/es-ES/chat', request.url));
+  }
+
+  // Handle other internationalization routing
+  return intlMiddleware(request);
+}
+
 export const config = {
-  // Match only internationalized pathnames
+  // Match all paths for proper redirection and internationalization
   matcher: ['/', '/(es-ES)/:path*']
 };

@@ -3,7 +3,19 @@ import { test, expect } from '@playwright/test';
 test.describe('Flujo de Chat', () => {
   test.beforeEach(async ({ page }) => {
     // Navigate to the chat page
-    await page.goto('/es-ES');
+    await page.goto('/es-ES/chat');
+  });
+
+  test('debe redirigir desde la raíz a /es-ES/chat', async ({ page }) => {
+    // Navigate to root path
+    await page.goto('/');
+    
+    // Should redirect to chat page
+    await page.waitForURL('/es-ES/chat');
+    expect(page.url()).toContain('/es-ES/chat');
+    
+    // Verify chat interface is loaded
+    await expect(page.getByTestId('chat-title')).toBeVisible();
   });
 
   test('debe cargar la interfaz del chat correctamente', async ({ page }) => {
