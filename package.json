@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "type-check": "tsc --noEmit",
     "test:e2e": "playwright test"
   },
   "dependencies": {
@@ -26,5 +27,9 @@
     "eslint": "^8.57.0",
     "eslint-config-next": "14.2.5",
     "@playwright/test": "^1.46.1"
+  },
+  "engines": {
+    "node": ">=18.19.0",
+    "pnpm": ">=8.0.0"
   }
 }

@@ -49,6 +49,7 @@ N8N_WEBHOOK_PATH=/webhook/chat
 Asegúrate de que tu instancia de n8n esté ejecutándose y tenga configurado un webhook que:
 
 **Recibe (Request):**
+
 ```json
 {
   "chatInput": "string",
@@ -58,13 +59,14 @@ Asegúrate de que tu instancia de n8n esté ejecutándose y tenga configurado un
 ```
 
 **Responde (Response):**
+
 ```json
 {
   "output": "string",
   "sources": "string[] (opcional)",
   "usage": {
     "promptTokens": "number",
-    "completionTokens": "number", 
+    "completionTokens": "number",
     "totalTokens": "number"
   }
 }
@@ -125,6 +127,7 @@ tests/
 Endpoint principal para enviar mensajes al chat con soporte SSE.
 
 **Request:**
+
 ```json
 {
   "chatInput": "Tu mensaje aquí",
@@ -134,6 +137,7 @@ Endpoint principal para enviar mensajes al chat con soporte SSE.
 ```
 
 **Response (SSE):**
+
 ```
 data: {"type": "status", "message": "Connecting to AI..."}
 data: {"type": "chunk", "content": "Parte del mensaje..."}
@@ -153,16 +157,19 @@ Los tests E2E verifican:
 ## Características Técnicas
 
 ### Server-Sent Events (SSE)
+
 - Streaming de respuestas en tiempo real
 - Chunking automático de respuestas largas (600-800 caracteres)
 - Manejo de errores y reconexión
 
 ### Integración n8n
+
 - Mapeo exacto de parámetros: `{chatInput, topK, temperature}`
 - Respuesta estructurada: `{output, sources?, usage?}`
 - Manejo de errores y timeouts
 
 ### Internacionalización
+
 - Textos en español (es-ES)
 - Configurado con next-intl
 - Extensible a otros idiomas

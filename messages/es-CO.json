@@ -1,17 +1,43 @@
 {
   "chat": {
-    "title": "Nueva Conversación",
-    "placeholder": "Escriba su mensaje aquí…",
-    "send": "Enviar",
-    "clear": "Buscar conversaciones",
-    "loading": "Cargando...",
-    "error": "Error al enviar mensaje",
-    "retry": "Reintentar",
-    "sources": "Ver Fuentes",
+    "interface": {
+      "newConversation": "Nueva Conversación",
+      "placeholder": "Escribe tu mensaje aquí…",
+      "send": "Enviar",
+      "regenerate": "Regenerar",
+      "copy": "Copiar",
+      "edit": "Editar",
+      "delete": "Eliminar",
+      "viewSources": "Ver Fuentes",
+      "typing": "Escribiendo…",
+      "thinking": "Pensando…"
+    },
+    "sidebar": {
+      "conversations": "Conversaciones",
+      "search": "Buscar conversaciones",
+      "noConversations": "No hay conversaciones aún",
+      "deleteConfirm": "¿Está seguro de que quiere eliminar esta conversación?"
+    },
     "settings": {
       "title": "Configuración",
-      "topK": "Top K",
-      "temperature": "Temperatura"
+      "ragSettings": "Configuración de RAG",
+      "topK": "Número de fuentes (Top-K)",
+      "temperature": "Creatividad",
+      "language": "Idioma",
+      "theme": "Tema",
+      "save": "Guardar",
+      "cancel": "Cancelar"
     }
+  },
+  "common": {
+    "loading": "Cargando...",
+    "error": "Error",
+    "retry": "Reintentar",
+    "close": "Cerrar",
+    "save": "Guardar",
+    "cancel": "Cancelar",
+    "confirm": "Confirmar",
+    "yes": "Sí",
+    "no": "No"
   }
 }
