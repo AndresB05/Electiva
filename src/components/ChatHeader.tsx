@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 
 interface ChatHeaderProps {
@@ -8,18 +9,65 @@ interface ChatHeaderProps {
     temperature: number;
   };
   onSettingsChange: (settings: { topK: number; temperature: number }) => void;
+  currentModel: string;
+  onModelChange: (model: string) => void;
 }
 
-export default function ChatHeader({ settings, onSettingsChange }: ChatHeaderProps) {
+export default function ChatHeader({ settings, onSettingsChange, currentModel, onModelChange }: ChatHeaderProps) {
   const t = useTranslations('chat');
   const appName = process.env.NEXT_PUBLIC_APP_NAME || 'MiChat';
+  const [isModelDropdownOpen, setIsModelDropdownOpen] = useState(false);
+
+  const modelOptions = [
+    { id: 'gemini', name: 'Gemini' },
+    { id: 'openai', name: 'OpenAI' },
+    { id: 'python', name: 'Python' }
+  ];
+
+  const selectedModel = modelOptions.find(model => model.id === currentModel) || modelOptions[0];
 
   return (
     <div className="border-b border-gray-200 bg-white px-6 py-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold text-gray-900">
-          {appName}
-        </h1>
+        <div className="flex items-center gap-4">
+          <h1 className="text-2xl font-semibold text-gray-900">
+            {appName}
+          </h1>
+          
+          {/* Model Selector Dropdown */}
+          <div className="relative">
+            <button 
+              onClick={() => setIsModelDropdownOpen(!isModelDropdownOpen)}
+              className="flex items-center gap-2 px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+            >
+              <span>{selectedModel.name}</span>
+              <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+            
+            {isModelDropdownOpen && (
+              <div className="absolute left-0 mt-1 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-10">
+                <div className="py-1">
+                  {modelOptions.map((model) => (
+                    <button
+                      key={model.id}
+                      onClick={() => {
+                        onModelChange(model.id);
+                        setIsModelDropdownOpen(false);
+                      }}
+                      className={`block w-full text-left px-4 py-2 text-sm hover:bg-gray-100 ${
+                        currentModel === model.id ? 'bg-gray-100 font-medium' : ''
+                      }`}
+                    >
+                      {model.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
         
         <div className="flex items-center gap-4 text-sm">
           <span className="text-gray-600">Conversación</span>

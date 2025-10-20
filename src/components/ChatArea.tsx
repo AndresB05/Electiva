@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef } from 'react';
 import { useTranslations } from 'next-intl';
-import ChatHeader from './ChatHeader';
 import MessageList from './MessageList';
 import ChatInput from './ChatInput';
+import ChatHeader from './ChatHeader';
 
 interface Message {
   id: string;
@@ -29,25 +29,47 @@ interface ChatAreaProps {
   onUpdateConversationTitle?: (conversationId: string, title: string) => void;
   conversationMessages: Record<string, Message[]>;
   setConversationMessages: React.Dispatch<React.SetStateAction<Record<string, Message[]>>>;
+  currentModel: string;
+  onModelChange: (model: string) => void;
 }
 
-export default function ChatArea({ conversations, activeConversationId, onNewConversation, onUpdateConversationTitle, conversationMessages, setConversationMessages }: ChatAreaProps) {
+export default function ChatArea({ conversations, activeConversationId, onNewConversation, onUpdateConversationTitle, conversationMessages, setConversationMessages, currentModel, onModelChange }: ChatAreaProps) {
   const t = useTranslations('chat');
   // Remove local state as it's now passed from parent
   const [isLoading, setIsLoading] = useState(false);
   const [streamingMessage, setStreamingMessage] = useState('');
-  const [settings, setSettings] = useState({
-    topK: 5,
-    temperature: 0.7
-  });
+  const [settings, setSettings] = useState({ topK: 5, temperature: 0.7 });
   const abortControllerRef = useRef<AbortController | null>(null);
 
   // Get messages for the active conversation, or default conversation if none selected
   const currentConversationId = activeConversationId || 'default';
   const messages = conversationMessages[currentConversationId] || [];
 
+  const handleSettingsChange = (newSettings: { topK: number; temperature: number }) => {
+    setSettings(newSettings);
+  };
+
   const handleSendMessage = async (message: string) => {
     if (!message.trim() || isLoading) return;
+
+    // If Python model is selected, don't send the message
+    if (currentModel === 'python') {
+      // Add a message to the chat indicating the model is not available
+      const targetConversationId = currentConversationId === 'default' ? 'default' : currentConversationId;
+      const assistantMessageId = Date.now().toString();
+      const assistantMessage: Message = {
+        id: assistantMessageId,
+        type: 'assistant',
+        content: 'El modelo Python aún no está disponible',
+        conversationId: targetConversationId,
+      };
+      
+      setConversationMessages(prev => ({
+        ...prev,
+        [targetConversationId]: [...(prev[targetConversationId] || []), assistantMessage]
+      }));
+      return;
+    }
 
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -100,90 +122,61 @@ export default function ChatArea({ conversations, activeConversationId, onNewCon
       [targetConversationId]: [...(prev[targetConversationId] || []), assistantMessage]
     }));
 
-    // Remove the old auto-creation logic since we handle it above
-
     try {
-      abortControllerRef.current = new AbortController();
-      
-      const response = await fetch('/api/chat/send', {
+      // Determine the webhook URL based on the selected model
+      let webhookUrl = 'https://sswebhookss.andresblanco.website/webhook/55a9690e-b300-4e78-9911-8ecca6fa44b1';
+      if (currentModel === 'openai') {
+        webhookUrl = 'https://sswebhookss.andresblanco.website/webhook/61bd55ad-d3f7-4ea3-b5fd-5295bd1de5d7';
+      }
+
+      // Send message to the appropriate webhook
+      const response = await fetch(webhookUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          message,
-          conversationId: targetConversationId,
-          settings
+          message: message,
+          topK: settings.topK,
+          temperature: settings.temperature,
         }),
-        signal: abortControllerRef.current.signal,
       });
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-      const reader = response.body?.getReader();
-      if (!reader) {
-        throw new Error('No reader available');
-      }
-
-      const decoder = new TextDecoder();
-      let accumulatedContent = '';
-      let currentSources: any[] | undefined;
-      let currentUsage: any | undefined;
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        const chunk = decoder.decode(value);
-        const lines = chunk.split('\n');
-
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            try {
-              const eventData = JSON.parse(line.slice(6));
-              
-              if (eventData.type === 'message') {
-                accumulatedContent += eventData.data.content;
-                setStreamingMessage(accumulatedContent);
-                setConversationMessages(prev => ({
-                  ...prev,
-                  [targetConversationId]: (prev[targetConversationId] || []).map(msg => 
-                    msg.id === assistantMessageId 
-                      ? { ...msg, content: accumulatedContent }
-                      : msg
-                  )
-                }));
-              } else if (eventData.type === 'sources') {
-                currentSources = eventData.data.sources;
-              } else if (eventData.type === 'usage') {
-                currentUsage = eventData.data.usage;
-              } else if (eventData.type === 'complete') {
-                setConversationMessages(prev => ({
-                  ...prev,
-                  [targetConversationId]: (prev[targetConversationId] || []).map(msg => 
-                    msg.id === assistantMessageId 
-                      ? { 
-                          ...msg, 
-                          content: accumulatedContent,
-                          sources: currentSources,
-                          usage: currentUsage,
-                        }
-                      : msg
-                  )
-                }));
-              } else if (eventData.type === 'error') {
-                throw new Error(eventData.data.message);
-              }
-            } catch (parseError) {
-              console.error('Error parsing SSE data:', parseError);
-            }
+      let data;
+      try {
+        // Check if response has content before parsing
+        const responseText = await response.text();
+        if (!responseText) {
+          data = { response: 'Received empty response from webhook' };
+        } else {
+          try {
+            data = JSON.parse(responseText);
+          } catch (jsonError) {
+            // Handle case where response is not valid JSON
+            console.error('Failed to parse JSON response:', jsonError);
+            data = { response: responseText };
           }
         }
+      } catch (error) {
+        console.error('Error reading response:', error);
+        data = { response: 'Error reading response from webhook' };
       }
+      
+      // Display the response as assistant message
+      setConversationMessages(prev => ({
+        ...prev,
+        [targetConversationId]: (prev[targetConversationId] || []).map(msg => 
+          msg.id === assistantMessageId 
+            ? { ...msg, content: data.response || data.message || data.text || 'Response received' }
+            : msg
+        )
+      }));
     } catch (error) {
-      console.error('Error sending message:', error);
+      console.error('Error sending message to webhook:', error);
       setConversationMessages(prev => ({
         ...prev,
         [targetConversationId]: (prev[targetConversationId] || []).map(msg => 
@@ -200,19 +193,19 @@ export default function ChatArea({ conversations, activeConversationId, onNewCon
   };
 
   const handleStop = () => {
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-      setIsLoading(false);
-      setStreamingMessage('');
-    }
+    // Since we're not using streaming anymore, this can be simplified
+    setIsLoading(false);
+    setStreamingMessage('');
   };
 
   return (
     <div className="flex-1 flex flex-col bg-white">
-      {/* Header */}
+      {/* Chat Header */}
       <ChatHeader 
         settings={settings} 
-        onSettingsChange={setSettings}
+        onSettingsChange={handleSettingsChange}
+        currentModel={currentModel}
+        onModelChange={onModelChange}
       />
       
       {messages.length > 0 ? (

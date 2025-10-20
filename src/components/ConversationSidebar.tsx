@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useTranslations } from 'next-intl';
 
 interface Conversation {
@@ -15,6 +15,7 @@ interface ConversationSidebarProps {
   onNewConversation: () => void;
   onSelectConversation: (conversationId: string) => void;
   onDeleteConversation: (conversationId: string) => void;
+  onFileUpload?: (file: File) => Promise<void>; // Add file upload handler
 }
 
 export default function ConversationSidebar({
@@ -22,10 +23,36 @@ export default function ConversationSidebar({
   activeConversationId, 
   onNewConversation,
   onSelectConversation,
-  onDeleteConversation
+  onDeleteConversation,
+  onFileUpload
 }: ConversationSidebarProps) {
   const t = useTranslations('chat');
   const [searchQuery, setSearchQuery] = useState('');
+  const [isUploading, setIsUploading] = useState(false); // Add upload state
+  const fileInputRef = useRef<HTMLInputElement>(null); // Add ref for file input
+
+  const handleFileUploadClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    e.target.value = ''; // Reset input
+
+    try {
+      if (onFileUpload) {
+        await onFileUpload(file);
+      }
+    } catch (error) {
+      console.error('File upload failed:', error);
+      alert(t('common.error') + ': ' + (error instanceof Error ? error.message : 'Unknown error'));
+    } finally {
+      setIsUploading(false);
+    }
+  };
 
   const filteredConversations = conversations.filter(conv =>
     conv.title.toLowerCase().includes(searchQuery.toLowerCase())
@@ -52,6 +79,38 @@ export default function ConversationSidebar({
           </svg>
           {t('interface.newConversation')}
         </button>
+      </div>
+
+      {/* File Upload Button */}
+      <div className="px-3 mb-3">
+        <button
+          onClick={handleFileUploadClick}
+          disabled={isUploading}
+          className="w-full flex items-center justify-center gap-2 p-2 rounded-lg border border-gray-600 hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {isUploading ? (
+            <>
+              <svg className="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              <span>{t('common.loading')}</span>
+            </>
+          ) : (
+            <>
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+              </svg>
+              <span>Subir archivo</span>
+            </>
+          )}
+        </button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          onChange={handleFileChange}
+          className="hidden"
+          accept="*/*"
+        />
       </div>
 
       {/* Search */}

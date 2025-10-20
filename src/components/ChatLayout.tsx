@@ -21,8 +21,9 @@ export default function ChatLayout() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [conversationMessages, setConversationMessages] = useState<Record<string, any[]>>({});
+  const [currentModel, setCurrentModel] = useState('gemini');
 
-  const handleNewConversation = () => {
+  const handleNewConversation = (): string => {
     const newId = Date.now().toString();
     const newConversation: Conversation = {
       id: newId,
@@ -64,6 +65,34 @@ export default function ChatLayout() {
     );
   };
 
+  const handleFileUpload = async (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      // Determine the upload URL based on the selected model
+      let uploadUrl = 'https://sswebhookss.andresblanco.website/form/945669b3-e73b-43f3-9ba1-e69de817c628';
+      if (currentModel === 'openai') {
+        uploadUrl = 'https://ssn8nss.andresblanco.website/form-test/9d5d7c81-fdf7-4e81-97cd-c5719371e590';
+      }
+
+      const response = await fetch(uploadUrl, {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error(`Upload failed with status ${response.status}`);
+      }
+
+      // Show success message
+      alert('Archivo subido correctamente');
+    } catch (error) {
+      console.error('File upload error:', error);
+      throw error;
+    }
+  };
+
   return (
     <div className="flex h-screen bg-gray-50">
       {/* Sidebar */}
@@ -73,6 +102,7 @@ export default function ChatLayout() {
         onNewConversation={handleNewConversation}
         onSelectConversation={handleSelectConversation}
         onDeleteConversation={handleDeleteConversation}
+        onFileUpload={handleFileUpload}
       />
       
       {/* Main Chat Area */}
@@ -83,6 +113,8 @@ export default function ChatLayout() {
         onUpdateConversationTitle={updateConversationTitle}
         conversationMessages={conversationMessages}
         setConversationMessages={setConversationMessages}
+        currentModel={currentModel}
+        onModelChange={setCurrentModel}
       />
     </div>
   );
