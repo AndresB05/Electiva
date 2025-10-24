@@ -48,7 +48,7 @@ export default function ConversationSidebar({
       }
     } catch (error) {
       console.error('File upload failed:', error);
-      alert(t('common.error') + ': ' + (error instanceof Error ? error.message : 'Unknown error'));
+      alert('Error al subir archivo: ' + (error instanceof Error ? error.message : 'Unknown error'));
     } finally {
       setIsUploading(false);
     }

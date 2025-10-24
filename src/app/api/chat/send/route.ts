@@ -3,7 +3,7 @@ import { NextRequest } from 'next/server';
 export const runtime = 'nodejs'; // SSE estable
 
 interface ChatRequest {
-  message: string;
+  chatInput: string;
   conversationId?: string | null;
   settings?: {
     topK?: number;
@@ -93,12 +93,12 @@ function chunkText(text: string): string[] {
 
 export async function POST(req: NextRequest) {
   try {
-    const { message, conversationId, settings } = await req.json() as ChatRequest;
+    const { chatInput, conversationId, settings } = await req.json() as ChatRequest;
 
-    if (!message) {
+    if (!chatInput) {
       const errorResponse = JSON.stringify({
         type: 'error',
-        data: { message: 'Message is required', code: 'VALIDATION_ERROR' }
+        data: { message: 'chatInput is required', code: 'VALIDATION_ERROR' }
       });
       return new Response(`data: ${errorResponse}\n\n`, {
         headers: { 'Content-Type': 'text/event-stream' }
@@ -128,7 +128,7 @@ export async function POST(req: NextRequest) {
         ...(process.env.N8N_API_KEY ? { Authorization: `Bearer ${process.env.N8N_API_KEY}` } : {})
       },
       body: JSON.stringify({
-        chatInput: message,
+        chatInput: chatInput,
         topK: settings?.topK ?? 5,
         temperature: settings?.temperature ?? 0.7
       })

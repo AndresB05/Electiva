@@ -79,27 +79,26 @@ export default function ChatArea({ conversations, activeConversationId, onNewCon
     };
 
     // Check if we need to create a new conversation and update title
-    let actualConversationId = currentConversationId;
+    let targetConversationId = currentConversationId;
     const isFirstMessage = currentConversationId === 'default' && (conversationMessages[currentConversationId] || []).length === 0;
     
     if (isFirstMessage) {
       // Create new conversation and get its ID
-      actualConversationId = onNewConversation();
+      targetConversationId = onNewConversation();
       
       // Generate a title from the user's message
       const title = message.length > 30 ? message.substring(0, 30) + '...' : message;
       
       // Update the conversation title immediately
       if (onUpdateConversationTitle) {
-        onUpdateConversationTitle(actualConversationId, title);
+        onUpdateConversationTitle(targetConversationId, title);
       }
       
       // Update the user message with the correct conversation ID
-      userMessage.conversationId = actualConversationId;
+      userMessage.conversationId = targetConversationId;
     }
 
     // Update messages for the current conversation (which could be 'default' or the new one)
-    const targetConversationId = isFirstMessage ? actualConversationId : currentConversationId;
     setConversationMessages(prev => ({
       ...prev,
       [targetConversationId]: [...(prev[targetConversationId] || []), userMessage]
@@ -167,16 +166,27 @@ export default function ChatArea({ conversations, activeConversationId, onNewCon
       }
       
       // Display the response as assistant message
+      // Handle various possible response formats from n8n
+      let responseContent = '';
+      if (Array.isArray(data) && data.length > 0) {
+        // Handle array response format
+        const firstItem = data[0];
+        responseContent = firstItem.output || firstItem.response || firstItem.message || firstItem.text || '';
+      } else {
+        // Handle object response format
+        responseContent = data.output || data.response || data.message || data.text || '';
+      }
+      
       setConversationMessages(prev => ({
         ...prev,
         [targetConversationId]: (prev[targetConversationId] || []).map(msg => 
           msg.id === assistantMessageId 
-            ? { ...msg, content: data.response || data.message || data.text || 'Response received' }
+            ? { ...msg, content: responseContent || 'Response received' }
             : msg
         )
       }));
     } catch (error) {
-      console.error('Error sending message to webhook:', error);
+      console.error('Error sending message:', error);
       setConversationMessages(prev => ({
         ...prev,
         [targetConversationId]: (prev[targetConversationId] || []).map(msg => 

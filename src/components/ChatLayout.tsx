@@ -82,14 +82,15 @@ export default function ChatLayout() {
       });
 
       if (!response.ok) {
-        throw new Error(`Upload failed with status ${response.status}`);
+        const errorText = await response.text();
+        throw new Error(`Upload failed with status ${response.status}: ${errorText || response.statusText}`);
       }
 
       // Show success message
       alert('Archivo subido correctamente');
     } catch (error) {
       console.error('File upload error:', error);
-      throw error;
+      throw new Error(`File upload failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 
