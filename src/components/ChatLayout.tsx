@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
 import ConversationSidebar from './ConversationSidebar';
 import ChatArea from './ChatArea';
@@ -13,7 +13,6 @@ interface Conversation {
 
 interface ChatLayoutProps {
   // Optional prop to receive conversation message deletion callback
-  onDeleteConversationMessages?: (conversationId: string) => void;
 }
 
 export default function ChatLayout() {
@@ -22,6 +21,8 @@ export default function ChatLayout() {
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [conversationMessages, setConversationMessages] = useState<Record<string, any[]>>({});
   const [currentModel, setCurrentModel] = useState('gemini');
+  const [chatbotId, setChatbotId] = useState<string | null>(null);
+  const [isBuildingChatbot, setIsBuildingChatbot] = useState(false);
 
   const handleNewConversation = (): string => {
     const newId = Date.now().toString();
@@ -70,29 +71,74 @@ export default function ChatLayout() {
     formData.append('file', file);
 
     try {
-      // Determine the upload URL based on the selected model
-      let uploadUrl = 'https://sswebhookss.andresblanco.website/form/945669b3-e73b-43f3-9ba1-e69de817c628';
-      if (currentModel === 'openai') {
-        uploadUrl = 'https://ssn8nss.andresblanco.website/form-test/9d5d7c81-fdf7-4e81-97cd-c5719371e590';
+      if (currentModel === 'python') {
+        // Handle Python backend file upload
+        setIsBuildingChatbot(true);
+        
+        const response = await fetch('http://localhost:5000/build_chatbot', {
+          method: 'POST',
+          body: formData,
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`Upload failed with status ${response.status}: ${errorText || response.statusText}`);
+        }
+
+        const data = await response.json();
+        setChatbotId(data.chatbot_id);
+        
+        // Show success message
+        alert('Archivo procesado correctamente. Puedes ahora hacer preguntas sobre el documento.');
+      } else {
+        // Handle n8n file upload
+        // Determine the upload URL based on the selected model
+        let uploadUrl = 'https://sswebhookss.andresblanco.website/form/945669b3-e73b-43f3-9ba1-e69de817c628';
+        if (currentModel === 'openai') {
+          uploadUrl = 'https://ssn8nss.andresblanco.website/form-test/9d5d7c81-fdf7-4e81-97cd-c5719371e590';
+        }
+
+        const response = await fetch(uploadUrl, {
+          method: 'POST',
+          body: formData,
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`Upload failed with status ${response.status}: ${errorText || response.statusText}`);
+        }
+
+        // Show success message
+        alert('Archivo subido correctamente');
       }
-
-      const response = await fetch(uploadUrl, {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Upload failed with status ${response.status}: ${errorText || response.statusText}`);
-      }
-
-      // Show success message
-      alert('Archivo subido correctamente');
     } catch (error) {
       console.error('File upload error:', error);
       throw new Error(`File upload failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setIsBuildingChatbot(false);
     }
   };
+
+  // Check if Python chatbot is ready
+  useEffect(() => {
+    if (currentModel === 'python' && chatbotId) {
+      const checkStatus = async () => {
+        try {
+          const response = await fetch(`http://localhost:5000/chatbot_status/${chatbotId}`);
+          if (response.ok) {
+            const data = await response.json();
+            console.log('Chatbot status:', data);
+          }
+        } catch (error) {
+          console.error('Error checking chatbot status:', error);
+        }
+      };
+
+      // Check status every 5 seconds
+      const interval = setInterval(checkStatus, 5000);
+      return () => clearInterval(interval);
+    }
+  }, [currentModel, chatbotId]);
 
   return (
     <div className="flex h-screen bg-gray-50">
@@ -116,6 +162,8 @@ export default function ChatLayout() {
         setConversationMessages={setConversationMessages}
         currentModel={currentModel}
         onModelChange={setCurrentModel}
+        chatbotId={chatbotId}
+        isBuildingChatbot={isBuildingChatbot}
       />
     </div>
   );

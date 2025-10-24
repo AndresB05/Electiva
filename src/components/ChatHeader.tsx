@@ -20,8 +20,8 @@ export default function ChatHeader({ settings, onSettingsChange, currentModel, o
 
   const modelOptions = [
     { id: 'gemini', name: 'Gemini' },
-    { id: 'openai', name: 'OpenAI' },
-    { id: 'python', name: 'Python' }
+    { id: 'openai', name: 'OpenAI (n8n)' },
+    { id: 'python', name: 'Python (Local)' }
   ];
 
   const selectedModel = modelOptions.find(model => model.id === currentModel) || modelOptions[0];

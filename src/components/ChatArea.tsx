@@ -31,9 +31,11 @@ interface ChatAreaProps {
   setConversationMessages: React.Dispatch<React.SetStateAction<Record<string, Message[]>>>;
   currentModel: string;
   onModelChange: (model: string) => void;
+  chatbotId?: string | null;
+  isBuildingChatbot?: boolean;
 }
 
-export default function ChatArea({ conversations, activeConversationId, onNewConversation, onUpdateConversationTitle, conversationMessages, setConversationMessages, currentModel, onModelChange }: ChatAreaProps) {
+export default function ChatArea({ conversations, activeConversationId, onNewConversation, onUpdateConversationTitle, conversationMessages, setConversationMessages, currentModel, onModelChange, chatbotId, isBuildingChatbot }: ChatAreaProps) {
   const t = useTranslations('chat');
   // Remove local state as it's now passed from parent
   const [isLoading, setIsLoading] = useState(false);
@@ -52,23 +54,43 @@ export default function ChatArea({ conversations, activeConversationId, onNewCon
   const handleSendMessage = async (message: string) => {
     if (!message.trim() || isLoading) return;
 
-    // If Python model is selected, don't send the message
+    // If Python model is selected, handle it differently
     if (currentModel === 'python') {
-      // Add a message to the chat indicating the model is not available
-      const targetConversationId = currentConversationId === 'default' ? 'default' : currentConversationId;
-      const assistantMessageId = Date.now().toString();
-      const assistantMessage: Message = {
-        id: assistantMessageId,
-        type: 'assistant',
-        content: 'El modelo Python aún no está disponible',
-        conversationId: targetConversationId,
-      };
+      if (isBuildingChatbot) {
+        // Add a message to the chat indicating the model is building
+        const targetConversationId = currentConversationId === 'default' ? 'default' : currentConversationId;
+        const assistantMessageId = Date.now().toString();
+        const assistantMessage: Message = {
+          id: assistantMessageId,
+          type: 'assistant',
+          content: 'El chatbot se está construyendo. Por favor, espera un momento.',
+          conversationId: targetConversationId,
+        };
+        
+        setConversationMessages(prev => ({
+          ...prev,
+          [targetConversationId]: [...(prev[targetConversationId] || []), assistantMessage]
+        }));
+        return;
+      }
       
-      setConversationMessages(prev => ({
-        ...prev,
-        [targetConversationId]: [...(prev[targetConversationId] || []), assistantMessage]
-      }));
-      return;
+      if (!chatbotId) {
+        // Add a message to the chat indicating no document has been uploaded
+        const targetConversationId = currentConversationId === 'default' ? 'default' : currentConversationId;
+        const assistantMessageId = Date.now().toString();
+        const assistantMessage: Message = {
+          id: assistantMessageId,
+          type: 'assistant',
+          content: 'Por favor, sube un documento PDF primero antes de hacer preguntas.',
+          conversationId: targetConversationId,
+        };
+        
+        setConversationMessages(prev => ({
+          ...prev,
+          [targetConversationId]: [...(prev[targetConversationId] || []), assistantMessage]
+        }));
+        return;
+      }
     }
 
     const userMessage: Message = {
@@ -122,69 +144,98 @@ export default function ChatArea({ conversations, activeConversationId, onNewCon
     }));
 
     try {
-      // Determine the webhook URL based on the selected model
-      let webhookUrl = 'https://sswebhookss.andresblanco.website/webhook/55a9690e-b300-4e78-9911-8ecca6fa44b1';
-      if (currentModel === 'openai') {
-        webhookUrl = 'https://sswebhookss.andresblanco.website/webhook/61bd55ad-d3f7-4ea3-b5fd-5295bd1de5d7';
-      }
+      if (currentModel === 'python' && chatbotId) {
+        // Handle Python backend chat
+        const response = await fetch(`http://localhost:5000/ask_chatbot/${chatbotId}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            question: message
+          }),
+        });
 
-      // Send message to the appropriate webhook
-      const response = await fetch(webhookUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          message: message,
-          topK: settings.topK,
-          temperature: settings.temperature,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      let data;
-      try {
-        // Check if response has content before parsing
-        const responseText = await response.text();
-        if (!responseText) {
-          data = { response: 'Received empty response from webhook' };
-        } else {
-          try {
-            data = JSON.parse(responseText);
-          } catch (jsonError) {
-            // Handle case where response is not valid JSON
-            console.error('Failed to parse JSON response:', jsonError);
-            data = { response: responseText };
-          }
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
         }
-      } catch (error) {
-        console.error('Error reading response:', error);
-        data = { response: 'Error reading response from webhook' };
-      }
-      
-      // Display the response as assistant message
-      // Handle various possible response formats from n8n
-      let responseContent = '';
-      if (Array.isArray(data) && data.length > 0) {
-        // Handle array response format
-        const firstItem = data[0];
-        responseContent = firstItem.output || firstItem.response || firstItem.message || firstItem.text || '';
+
+        const data = await response.json();
+        const responseContent = data.answer || 'No se pudo obtener una respuesta.';
+        
+        setConversationMessages(prev => ({
+          ...prev,
+          [targetConversationId]: (prev[targetConversationId] || []).map(msg => 
+            msg.id === assistantMessageId 
+              ? { ...msg, content: responseContent }
+              : msg
+          )
+        }));
       } else {
-        // Handle object response format
-        responseContent = data.output || data.response || data.message || data.text || '';
+        // Determine the webhook URL based on the selected model
+        let webhookUrl = 'https://sswebhookss.andresblanco.website/webhook/55a9690e-b300-4e78-9911-8ecca6fa44b1';
+        if (currentModel === 'openai') {
+          webhookUrl = 'https://sswebhookss.andresblanco.website/webhook/61bd55ad-d3f7-4ea3-b5fd-5295bd1de5d7';
+        }
+
+        // Send message to the appropriate webhook
+        const response = await fetch(webhookUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            message: message,
+            topK: settings.topK,
+            temperature: settings.temperature,
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        let data;
+        try {
+          // Check if response has content before parsing
+          const responseText = await response.text();
+          if (!responseText) {
+            data = { response: 'Received empty response from webhook' };
+          } else {
+            try {
+              data = JSON.parse(responseText);
+            } catch (jsonError) {
+              // Handle case where response is not valid JSON
+              console.error('Failed to parse JSON response:', jsonError);
+              data = { response: responseText };
+            }
+          }
+        } catch (error) {
+          console.error('Error reading response:', error);
+          data = { response: 'Error reading response from webhook' };
+        }
+        
+        // Display the response as assistant message
+        // Handle various possible response formats from n8n
+        let responseContent = '';
+        if (Array.isArray(data) && data.length > 0) {
+          // Handle array response format
+          const firstItem = data[0];
+          responseContent = firstItem.output || firstItem.response || firstItem.message || firstItem.text || '';
+        } else {
+          // Handle object response format
+          responseContent = data.output || data.response || data.message || data.text || '';
+        }
+        
+        setConversationMessages(prev => ({
+          ...prev,
+          [targetConversationId]: (prev[targetConversationId] || []).map(msg => 
+            msg.id === assistantMessageId 
+              ? { ...msg, content: responseContent || 'Response received' }
+              : msg
+          )
+        }));
       }
-      
-      setConversationMessages(prev => ({
-        ...prev,
-        [targetConversationId]: (prev[targetConversationId] || []).map(msg => 
-          msg.id === assistantMessageId 
-            ? { ...msg, content: responseContent || 'Response received' }
-            : msg
-        )
-      }));
     } catch (error) {
       console.error('Error sending message:', error);
       setConversationMessages(prev => ({
